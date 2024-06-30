@@ -91,6 +91,17 @@ def clean_output_folders():
         elif os.path.isfile(folder):
             os.remove(folder)
 
+def clean_frames_folder():
+    frames_folder = 'frames'
+    if os.path.isdir(frames_folder):
+        for game_folder in os.listdir(frames_folder):
+            game_folder_path = os.path.join(frames_folder, game_folder)
+            if os.path.isdir(game_folder_path):
+                for file in os.listdir(game_folder_path):
+                    file_path = os.path.join(game_folder_path, file)
+                    if os.path.isfile(file_path):
+                        os.unlink(file_path)
+
 def main():
     parser = argparse.ArgumentParser(description='Download videos and extract frames.')
     parser.add_argument('-i', '--input', type=str, required=True, help='Path to the input YAML file.')
@@ -99,11 +110,15 @@ def main():
     parser.add_argument('--test', action='store_true', help='Test run that processes only 1 video from each game.')
     parser.add_argument('--ignore_video_cache', action='store_true', help='Ignore video cache and redownload videos.')
     parser.add_argument('--clean', action='store_true', help='Clean the output folders before starting.')
+    parser.add_argument('--clean-frames', action='store_true', help='Clean the frames folder before starting.')
 
     args = parser.parse_args()
 
     if args.clean:
         clean_output_folders()
+
+    if args.clean_frames:
+        clean_frames_folder()
 
     games_urls = read_urls_from_yaml(args.input)
     cached_urls = read_cached_urls()
