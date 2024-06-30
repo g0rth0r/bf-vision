@@ -10,7 +10,7 @@ os.makedirs('frames', exist_ok=True)
 
 def download_video(url, output_path='videos'):
     ydl_opts = {
-        'format': 'best[height<=480]',
+        'format': 'best[height<=720]',
         'outtmpl': os.path.join(output_path, '%(id)s.%(ext)s'),
         'noplaylist': True
     }
@@ -20,7 +20,7 @@ def download_video(url, output_path='videos'):
         video_filename = ydl.prepare_filename(video_info)
     return video_filename, video_info['id']
 
-def extract_frames(video_path, video_id, output_path='frames', interval_sec=1):
+def extract_frames(video_path, video_id, output_path='frames', interval_sec=1, max_size=570):
     cap = cv2.VideoCapture(video_path)
     fps = cap.get(cv2.CAP_PROP_FPS)
     frame_interval = int(fps * interval_sec)
@@ -39,7 +39,7 @@ def extract_frames(video_path, video_id, output_path='frames', interval_sec=1):
             break
         
         # Resize the frame while maintaining aspect ratio
-        frame = resize_frame(frame, (224, 224))
+        frame = resize_frame(frame, max_size)
         frame_filename = os.path.join(output_path, f"{video_id}_{frame_index}.jpg")
         cv2.imwrite(frame_filename, frame)
         
@@ -48,17 +48,15 @@ def extract_frames(video_path, video_id, output_path='frames', interval_sec=1):
     
     cap.release()
 
-def resize_frame(frame, target_size):
+def resize_frame(frame, max_size):
     h, w = frame.shape[:2]
-    scale = min(target_size[0] / h, target_size[1] / w)
+    if h > w:
+        scale = max_size / h
+    else:
+        scale = max_size / w
     nh, nw = int(h * scale), int(w * scale)
     frame_resized = cv2.resize(frame, (nw, nh))
-    top_pad = (target_size[0] - nh) // 2
-    bottom_pad = target_size[0] - nh - top_pad
-    left_pad = (target_size[1] - nw) // 2
-    right_pad = target_size[1] - nw - left_pad
-    frame_padded = cv2.copyMakeBorder(frame_resized, top_pad, bottom_pad, left_pad, right_pad, cv2.BORDER_CONSTANT, value=[0, 0, 0])
-    return frame_padded
+    return frame_resized
 
 # Read YouTube URLs from a YAML file
 def read_urls_from_yaml(file_path):
@@ -115,4 +113,4 @@ for game, urls in games_urls.items():
         
         if video_filename and video_id:
             print(f"Extracting frames from {video_filename}")
-            extract_frames(video_filename, video_id, output_path=game_frame_path, interval_sec=60)
+            extract_frames(video_filename, video_id, output_path=game_frame_path, interval_sec=60, max_size=570)
