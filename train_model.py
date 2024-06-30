@@ -1,4 +1,5 @@
 import os
+import shutil
 import tensorflow as tf
 import numpy as np
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
@@ -8,6 +9,12 @@ from sklearn.model_selection import train_test_split
 
 # Paths
 data_dir = './frames'
+train_data_dir = './train_frames'
+validation_data_dir = './val_frames'
+
+# Create directories if they don't exist
+os.makedirs(train_data_dir, exist_ok=True)
+os.makedirs(validation_data_dir, exist_ok=True)
 
 # Image dimensions
 img_width, img_height = 244, 244
@@ -63,21 +70,34 @@ labels = tf.keras.utils.to_categorical(labels, num_classes)
 # Split data into training and validation sets
 train_paths, val_paths, train_labels, val_labels = train_test_split(image_paths, labels, test_size=0.3, stratify=labels)
 
+# Create directories for each class in train and validation directories
+for game in class_indices.keys():
+    os.makedirs(os.path.join(train_data_dir, game), exist_ok=True)
+    os.makedirs(os.path.join(validation_data_dir, game), exist_ok=True)
+
+# Move training files
+for train_path in train_paths:
+    game_name = train_path.split(os.sep)[-2]
+    shutil.copy(train_path, os.path.join(train_data_dir, game_name))
+
+# Move validation files
+for val_path in val_paths:
+    game_name = val_path.split(os.sep)[-2]
+    shutil.copy(val_path, os.path.join(validation_data_dir, game_name))
+
 # Create data generators
 train_generator = train_datagen.flow_from_directory(
-    data_dir,
+    train_data_dir,
     target_size=(max_dim, max_dim),
     batch_size=32,
-    class_mode='categorical',
-    subset='training'
+    class_mode='categorical'
 )
 
 validation_generator = validation_datagen.flow_from_directory(
-    data_dir,
+    validation_data_dir,
     target_size=(max_dim, max_dim),
     batch_size=32,
-    class_mode='categorical',
-    subset='validation'
+    class_mode='categorical'
 )
 
 # Model
