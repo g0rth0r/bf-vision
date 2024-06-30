@@ -1,0 +1,7 @@
+/youtube_urls.yaml
+/cached_urls.txt
+venv/
+.idea
+__pycache__/
+frames/
+videos/

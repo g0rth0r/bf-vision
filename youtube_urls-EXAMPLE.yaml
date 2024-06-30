@@ -1,0 +1,8 @@
+games:
+  Battlefield1:
+    - https://www.youtube.com/watch?v=EXAMPLE1
+    - https://www.youtube.com/watch?v=EXAMPLE2
+  Battlefield2042:
+    - https://www.youtube.com/watch?v=EXAMPLE3
+    - https://www.youtube.com/watch?v=EXAMPLE4
+  # Add more games and URLs as needed
