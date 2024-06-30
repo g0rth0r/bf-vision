@@ -1,26 +1,31 @@
 import os
 import cv2
 import numpy as np
-from yt_dlp import YoutubeDL
+import argparse
 import yaml
+from yt_dlp import YoutubeDL
 
-# Create directories if they don't exist
-os.makedirs('videos', exist_ok=True)
-os.makedirs('frames', exist_ok=True)
-
-def download_video(url, output_path='videos'):
+def download_video(url, output_path='videos', ignore_cache=False):
     ydl_opts = {
-        'format': 'best[height<=720]',
+        'format': 'bestvideo[height<=720]+bestaudio/best[height<=720]',
         'outtmpl': os.path.join(output_path, '%(id)s.%(ext)s'),
         'noplaylist': True
     }
-    with YoutubeDL(ydl_opts) as ydl:
-        ydl.download([url])
-        video_info = ydl.extract_info(url, download=False)
-        video_filename = ydl.prepare_filename(video_info)
-    return video_filename, video_info['id']
+    if ignore_cache or not os.path.exists(os.path.join(output_path, f"{get_video_id(url)}.mp4")):
+        with YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+            video_info = ydl.extract_info(url, download=False)
+            video_filename = ydl.prepare_filename(video_info)
+        return video_filename, video_info['id']
+    else:
+        return os.path.join(output_path, f"{get_video_id(url)}.mp4"), get_video_id(url)
 
-def extract_frames(video_path, video_id, output_path='frames', interval_sec=1, max_size=570):
+def get_video_id(url):
+    with YoutubeDL({'quiet': True}) as ydl:
+        video_info = ydl.extract_info(url, download=False)
+        return video_info['id']
+
+def extract_frames(video_path, video_id, output_path='frames', interval_sec=60, max_size=570):
     cap = cv2.VideoCapture(video_path)
     fps = cap.get(cv2.CAP_PROP_FPS)
     frame_interval = int(fps * interval_sec)
@@ -58,59 +63,78 @@ def resize_frame(frame, max_size):
     frame_resized = cv2.resize(frame, (nw, nh))
     return frame_resized
 
-# Read YouTube URLs from a YAML file
 def read_urls_from_yaml(file_path):
     with open(file_path, 'r') as file:
         data = yaml.safe_load(file)
     return data['games']
 
-# Read cached URLs from file
 def read_cached_urls(file_path='cached_urls.txt'):
     if os.path.exists(file_path):
         with open(file_path, 'r') as file:
             return set(line.strip() for line in file)
     return set()
 
-# Write URL to cache file
 def write_url_to_cache(url, file_path='cached_urls.txt'):
     with open(file_path, 'a') as file:
         file.write(url + '\n')
 
-# Specify the path to the YAML file containing the YouTube URLs
-url_file_path = 'youtube_urls.yaml'
-games_urls = read_urls_from_yaml(url_file_path)
-cached_urls = read_cached_urls()
+def clean_output_folders():
+    folders = ['videos', 'frames', 'cached_urls.txt']
+    for folder in folders:
+        if os.path.isdir(folder):
+            for file in os.listdir(folder):
+                file_path = os.path.join(folder, file)
+                if os.path.isfile(file_path):
+                    os.unlink(file_path)
+                elif os.path.isdir(file_path):
+                    os.rmdir(file_path)
+        elif os.path.isfile(folder):
+            os.remove(folder)
 
-for game, urls in games_urls.items():
-    game_frame_path = os.path.join('frames', game)
-    os.makedirs(game_frame_path, exist_ok=True)
-    
-    for url in urls:
-        video_filename = None
-        video_id = None
+def main():
+    parser = argparse.ArgumentParser(description='Download videos and extract frames.')
+    parser.add_argument('-i', '--input', type=str, required=True, help='Path to the input YAML file.')
+    parser.add_argument('--interval_sec', type=int, default=60, help='Interval in seconds between frames.')
+    parser.add_argument('--max_size', type=int, default=570, help='Maximum size of the frame dimension.')
+    parser.add_argument('--test', action='store_true', help='Test run that processes only 1 video from each game.')
+    parser.add_argument('--ignore_video_cache', action='store_true', help='Ignore video cache and redownload videos.')
+    parser.add_argument('--clean', action='store_true', help='Clean the output folders before starting.')
+
+    args = parser.parse_args()
+
+    if args.clean:
+        clean_output_folders()
+
+    games_urls = read_urls_from_yaml(args.input)
+    cached_urls = read_cached_urls()
+
+    for game, urls in games_urls.items():
+        game_frame_path = os.path.join('frames', game)
+        os.makedirs(game_frame_path, exist_ok=True)
         
-        if url in cached_urls:
-            print(f"Skipping download for cached video: {url}")
-            # Attempt to find the video file in the videos folder
-            try:
-                with YoutubeDL({'quiet': True}) as ydl:
-                    video_info = ydl.extract_info(url, download=False)
-                    video_id = video_info['id']
-                    video_filename = os.path.join('videos', f"{video_id}.mp4")
-                    if not os.path.exists(video_filename):
-                        raise FileNotFoundError(f"Video file for cached URL {url} not found.")
-            except Exception as e:
-                print(f"Failed to retrieve info for cached video {url}: {e}")
-                continue
-        else:
-            try:
-                print(f"Downloading video from {url}")
-                video_filename, video_id = download_video(url)
-                write_url_to_cache(url)
-            except Exception as e:
-                print(f"Failed to process {url}: {e}")
-                continue
-        
-        if video_filename and video_id:
-            print(f"Extracting frames from {video_filename}")
-            extract_frames(video_filename, video_id, output_path=game_frame_path, interval_sec=60, max_size=570)
+        if args.test:
+            urls = urls[:1]
+
+        for url in urls:
+            video_filename = None
+            video_id = None
+            
+            if url in cached_urls and not args.ignore_video_cache:
+                print(f"Skipping download for cached video: {url}")
+                video_filename = os.path.join('videos', f"{get_video_id(url)}.mp4")
+                video_id = get_video_id(url)
+            else:
+                try:
+                    print(f"Downloading video from {url}")
+                    video_filename, video_id = download_video(url, ignore_cache=args.ignore_video_cache)
+                    write_url_to_cache(url)
+                except Exception as e:
+                    print(f"Failed to process {url}: {e}")
+                    continue
+            
+            if video_filename and video_id:
+                print(f"Extracting frames from {video_filename}")
+                extract_frames(video_filename, video_id, output_path=game_frame_path, interval_sec=args.interval_sec, max_size=args.max_size)
+
+if __name__ == '__main__':
+    main()
