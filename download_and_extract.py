@@ -7,7 +7,7 @@ from yt_dlp import YoutubeDL
 
 def download_video(url, output_path='videos', ignore_cache=False):
     ydl_opts = {
-        'format': 'bestvideo[height<=720]+bestaudio/best[height<=720]',
+        'format': 'best[height<=720]',
         'outtmpl': os.path.join(output_path, '%(id)s.%(ext)s'),
         'noplaylist': True
     }
@@ -87,9 +87,22 @@ def clean_output_folders():
                 if os.path.isfile(file_path):
                     os.unlink(file_path)
                 elif os.path.isdir(file_path):
-                    os.rmdir(file_path)
+                    try:
+                        os.rmdir(file_path)
+                    except OSError:
+                        clean_directory(file_path)
+                        os.rmdir(file_path)
         elif os.path.isfile(folder):
             os.remove(folder)
+
+def clean_directory(directory):
+    for file in os.listdir(directory):
+        file_path = os.path.join(directory, file)
+        if os.path.isfile(file_path):
+            os.unlink(file_path)
+        elif os.path.isdir(file_path):
+            clean_directory(file_path)
+            os.rmdir(file_path)
 
 def clean_frames_folder():
     frames_folder = 'frames'
