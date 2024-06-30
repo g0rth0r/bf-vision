@@ -6,3 +6,4 @@ __pycache__/
 frames/
 videos/
 /sample.yaml
+.vscode

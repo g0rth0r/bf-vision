@@ -69,14 +69,33 @@ def read_urls_from_yaml(file_path):
     return data['games']
 
 def read_cached_urls(file_path='cached_urls.txt'):
+    cached_urls = set()
+    cached_ids = {}
     if os.path.exists(file_path):
         with open(file_path, 'r') as file:
-            return set(line.strip() for line in file)
-    return set()
+            lines = file.readlines()
+        
+        with open(file_path, 'w') as file:
+            for line in lines:
+                parts = line.strip().split()
+                url = parts[0]
+                if len(parts) > 1:
+                    video_id = parts[1]
+                else:
+                    print(f"Fetching video ID for cached URL: {url}")
+                    video_id = get_video_id(url)  # Fallback for old cache entries
+                    print(f"Updating cache with video ID: {url} {video_id}")
+                cached_urls.add(url)
+                cached_ids[url] = video_id
+                file.write(f"{url} {video_id}\n")
+    return cached_urls, cached_ids
 
-def write_url_to_cache(url, file_path='cached_urls.txt'):
+def write_url_to_cache(url, video_id=None, file_path='cached_urls.txt'):
     with open(file_path, 'a') as file:
-        file.write(url + '\n')
+        if video_id:
+            file.write(f"{url} {video_id}\n")
+        else:
+            file.write(f"{url}\n")
 
 def clean_output_folders():
     folders = ['videos', 'frames', 'cached_urls.txt']
@@ -126,18 +145,18 @@ def main():
     parser.add_argument('--clean-frames', action='store_true', help='Clean the frames folder before starting.')
     parser.add_argument('--skip-frames', action='store_true', help='Skip frames generation when video is cached.')
 
-
     args = parser.parse_args()
-
+    print("Starting extraction....")
     if args.clean:
         clean_output_folders()
 
     if args.clean_frames:
         clean_frames_folder()
-
+    print("Reading urls from yaml...")
     games_urls = read_urls_from_yaml(args.input)
-    cached_urls = read_cached_urls()
-
+    print("Reading urls from cache...")
+    cached_urls, cached_ids = read_cached_urls()
+    print("Entering main loop...")
     for game, urls in games_urls.items():
         game_frame_path = os.path.join('frames', game)
         os.makedirs(game_frame_path, exist_ok=True)
@@ -151,16 +170,16 @@ def main():
             
             if url in cached_urls and not args.ignore_video_cache:
                 print(f"Skipping download for cached video: {url}")
-                video_filename = os.path.join('videos', f"{get_video_id(url)}.mp4")
-                video_id = get_video_id(url)
+                video_id = cached_ids[url]
+                video_filename = os.path.join('videos', f"{video_id}.mp4")
                 if args.skip_frames:
-                        print(f"Skipping frame extraction for cached video: {url}")
-                        continue
+                    print(f"Skipping frame extraction for cached video: {url}")
+                    continue
             else:
                 try:
                     print(f"Downloading video from {url}")
                     video_filename, video_id = download_video(url, ignore_cache=args.ignore_video_cache)
-                    write_url_to_cache(url)
+                    write_url_to_cache(url, video_id)
                 except Exception as e:
                     print(f"Failed to process {url}: {e}")
                     continue
