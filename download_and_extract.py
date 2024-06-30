@@ -20,26 +20,31 @@ def download_video(url, output_path='videos'):
         video_filename = ydl.prepare_filename(video_info)
     return video_filename, video_info['id']
 
-def extract_frames(video_path, video_id, output_path='frames', frame_count=100):
+def extract_frames(video_path, video_id, output_path='frames', interval_sec=1):
     cap = cv2.VideoCapture(video_path)
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    frame_interval = int(fps * interval_sec)
     length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    frame_interval = length // frame_count
     
     if not cap.isOpened():
         print(f"Error opening video file: {video_path}")
         return
     
-    for i in range(frame_count):
-        frame_no = i * frame_interval
+    frame_no = 0
+    frame_index = 0
+    while frame_no < length:
         cap.set(cv2.CAP_PROP_POS_FRAMES, frame_no)
         ret, frame = cap.read()
         if not ret:
-            continue
+            break
         
         # Resize the frame while maintaining aspect ratio
         frame = resize_frame(frame, (224, 224))
-        frame_filename = os.path.join(output_path, f"{video_id}_{i}.jpg")
+        frame_filename = os.path.join(output_path, f"{video_id}_{frame_index}.jpg")
         cv2.imwrite(frame_filename, frame)
+        
+        frame_no += frame_interval
+        frame_index += 1
     
     cap.release()
 
@@ -110,4 +115,4 @@ for game, urls in games_urls.items():
         
         if video_filename and video_id:
             print(f"Extracting frames from {video_filename}")
-            extract_frames(video_filename, video_id, output_path=game_frame_path)
+            extract_frames(video_filename, video_id, output_path=game_frame_path, interval_sec=60)
