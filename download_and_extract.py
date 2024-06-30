@@ -4,8 +4,6 @@ import numpy as np
 from yt_dlp import YoutubeDL
 import yaml
 
-FRAME_PER_VIDEO = 100
-
 # Create directories if they don't exist
 os.makedirs('videos', exist_ok=True)
 os.makedirs('frames', exist_ok=True)
@@ -13,16 +11,16 @@ os.makedirs('frames', exist_ok=True)
 def download_video(url, output_path='videos'):
     ydl_opts = {
         'format': 'best[height<=480]',
-        'outtmpl': os.path.join(output_path, '%(title)s.%(ext)s'),
+        'outtmpl': os.path.join(output_path, '%(id)s.%(ext)s'),
         'noplaylist': True
     }
     with YoutubeDL(ydl_opts) as ydl:
         ydl.download([url])
         video_info = ydl.extract_info(url, download=False)
         video_filename = ydl.prepare_filename(video_info)
-    return video_filename
+    return video_filename, video_info['id']
 
-def extract_frames(video_path, output_path='frames', frame_count=FRAME_PER_VIDEO):
+def extract_frames(video_path, video_id, output_path='frames', frame_count=100):
     cap = cv2.VideoCapture(video_path)
     length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     frame_interval = length // frame_count
@@ -40,7 +38,7 @@ def extract_frames(video_path, output_path='frames', frame_count=FRAME_PER_VIDEO
         
         # Resize the frame while maintaining aspect ratio
         frame = resize_frame(frame, (224, 224))
-        frame_filename = os.path.join(output_path, f"{os.path.basename(video_path)}_frame_{i}.jpg")
+        frame_filename = os.path.join(output_path, f"{video_id}_{i}.jpg")
         cv2.imwrite(frame_filename, frame)
     
     cap.release()
@@ -85,15 +83,31 @@ for game, urls in games_urls.items():
     os.makedirs(game_frame_path, exist_ok=True)
     
     for url in urls:
-        if url in cached_urls:
-            print(f"Skipping already downloaded video: {url}")
-            continue
+        video_filename = None
+        video_id = None
         
-        try:
-            print(f"Downloading video from {url}")
-            video_path = download_video(url)
-            print(f"Extracting frames from {video_path}")
-            extract_frames(video_path, output_path=game_frame_path)
-            write_url_to_cache(url)
-        except Exception as e:
-            print(f"Failed to process {url}: {e}")
+        if url in cached_urls:
+            print(f"Skipping download for cached video: {url}")
+            # Attempt to find the video file in the videos folder
+            try:
+                with YoutubeDL({'quiet': True}) as ydl:
+                    video_info = ydl.extract_info(url, download=False)
+                    video_id = video_info['id']
+                    video_filename = os.path.join('videos', f"{video_id}.mp4")
+                    if not os.path.exists(video_filename):
+                        raise FileNotFoundError(f"Video file for cached URL {url} not found.")
+            except Exception as e:
+                print(f"Failed to retrieve info for cached video {url}: {e}")
+                continue
+        else:
+            try:
+                print(f"Downloading video from {url}")
+                video_filename, video_id = download_video(url)
+                write_url_to_cache(url)
+            except Exception as e:
+                print(f"Failed to process {url}: {e}")
+                continue
+        
+        if video_filename and video_id:
+            print(f"Extracting frames from {video_filename}")
+            extract_frames(video_filename, video_id, output_path=game_frame_path)
