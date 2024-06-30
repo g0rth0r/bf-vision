@@ -124,6 +124,8 @@ def main():
     parser.add_argument('--ignore_video_cache', action='store_true', help='Ignore video cache and redownload videos.')
     parser.add_argument('--clean', action='store_true', help='Clean the output folders before starting.')
     parser.add_argument('--clean-frames', action='store_true', help='Clean the frames folder before starting.')
+    parser.add_argument('--skip-frames', action='store_true', help='Skip frames generation when video is cached.')
+
 
     args = parser.parse_args()
 
@@ -151,6 +153,9 @@ def main():
                 print(f"Skipping download for cached video: {url}")
                 video_filename = os.path.join('videos', f"{get_video_id(url)}.mp4")
                 video_id = get_video_id(url)
+                if args.skip_frames:
+                        print(f"Skipping frame extraction for cached video: {url}")
+                        continue
             else:
                 try:
                     print(f"Downloading video from {url}")
